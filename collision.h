@@ -2,7 +2,7 @@
 # define __Collision_H__
 
 ///COLLISION V4///
-#define MAX_LEVEL		(4)
+#define MAX_LEVEL		(8)
 /*
 ***ATTRIBUTES***
 0 = solid wall/floor
@@ -16,6 +16,9 @@
 8 = ladder
 9 = kill player
 10 - 19 = door
+50 - 54 = camera
+60 to 80 message
+80 to 90 puzzle
 */
 typedef struct {
 	
@@ -52,7 +55,7 @@ typedef struct section_data{
     // Rotation
     //int rx;
     //int ry;
-    //int rz;
+    int rz;
 	
 	//model
 	XPDATA	*map_model;
@@ -80,16 +83,44 @@ level_section		map_section[];
 ///collision cubes: {x, y, z, sizex, sizey, sizez, type}
 /// types: 0:normal wall/floor 1:Zramp, 2:Xramp, 3:Zramp, 4: Xramp, 5 ladder,  10+: door (10 door 0, 11 door 1 etc - corresponds to map section number)
 
+
+char *level8[]={
+	
+"HOSP.TGA",
+"H_FRONT.BIN",
+"H_WAIT.BIN",
+"H_COR1.BIN",
+"H_COR2.BIN",
+"H_COR3.BIN",
+
+};
+
+char *level7[]={
+	
+"STRT.TGA",
+"ALLEY.BIN",
+
+};
+
+char *level6[]={
+	
+"SHOP.TGA",
+"SHOP.BIN",
+"STAIRS.BIN",
+"SHOP_UP.BIN"
+
+};
+
 char *level5[]={
 	
-"STREET.TGA",
+"STRT.TGA",
 "STREET.BIN"
 
 };
 
 char *level4[]={
 	
-"M_CHUR.TGA",
+"MCHR.TGA",
 "CH_MOFF.BIN",
 "CH_MIN.BIN",
 "CH_MTOW.BIN"
@@ -98,7 +129,7 @@ char *level4[]={
 
 char *level3[]={
 	
-"M_APT.TGA",
+"MAPT.TGA",
 "APT_MB.BIN",
 "APT_MA.BIN"
 
@@ -127,11 +158,23 @@ char *level1[]={
 
 char *level0[]={
 	
-"STREET.TGA",
+"STRT.TGA",
 "TITLE.BIN",
 
 };
+/*
+char *levels[]={
+	
+level0,
+&level1,
+&level2,
+&level3,
+&level4,
+&level5,
+&level6,
+&level7,
+&level8,
 
-
-
+};
+*/
 #endif /* !__Collision_H__ */

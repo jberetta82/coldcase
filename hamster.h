@@ -61,6 +61,8 @@
 #define GAMESTATE_OBJECT_VIEWER			(10)
 #define GAMESTATE_DEAD					(11)
 #define GAMESTATE_MAP					(12)
+#define GAMESTATE_PUZZLE				(13)
+#define GAMESTATE_TRANSITION_TO_MIRROR	(14)
 
 //define menu options
 #define PAUSE_MENU_MAX               (3)
@@ -667,7 +669,7 @@ extern enemy 	enemies[];
 
 typedef struct	_POWERUP
 {
-	Uint8			id;
+	Uint16			id;
 	Uint8			type;
 	int				x;
 	Sint16			y;
@@ -715,13 +717,22 @@ typedef struct  _GAME
 }               game_params;
 extern game_params game;
 
+typedef struct	_PUZZLE
+{
+    Uint8               id;
+    Uint8				type;
+	Uint8                solved;
+	
+    
+}                       puzzle;
 
+extern puzzle puzzles[];
 
 typedef struct	_DOOR
 {
-    Uint8               id;
-    Uint8                locked;
-	Uint8				type;
+    Uint8               level;
+    Uint16                key_id;
+	Uint8				area;
 	Sint16				new_x;
 	Sint16				new_y;
 	Sint16				new_z;

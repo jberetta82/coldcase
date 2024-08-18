@@ -58,7 +58,9 @@ level_section		map_section[20];
 enemy 				enemies[10];
 powerup				powerups[10];
 door				doors[5];
+puzzle				puzzles[5];
 unsigned int				door_total = 0;
+unsigned int				total_puzzles = 0;
 jo_pos3Df                   pos;
 jo_rot3Df                   rot;
 jo_palette                  image_pal;
@@ -178,6 +180,11 @@ bool 					anim_loop = 1;
 Uint8 					total_frames;
 int						map_plan_tex;
 Uint8					has_map_plan;
+int						puzzle_bg;
+int						puzzle_sprite_1;
+int						puzzle_sprite_2;
+int						puz_rot1;
+int						puz_rot2;
 
 jo_palette          *my_tga_palette_handling(void)
 {
@@ -446,7 +453,7 @@ remaining_bullets = weapon_to_reload->total_bullets - weapon_to_reload->bullets_
 
 			if(remaining_bullets > 0)
 			{
-			pcm_play(reload_sound, PCM_VOLATILE, 6);
+			pcm_play(reload_sound, PCM_SEMI, 6);
 				if(weapon_to_reload->bullets_in_clip + remaining_bullets >=weapon_to_reload->clip_size)
 				{
 				weapon_to_reload->bullets_in_clip = weapon_to_reload->clip_size;
@@ -462,7 +469,7 @@ remaining_bullets = weapon_to_reload->total_bullets - weapon_to_reload->bullets_
 			}else
 			{
 			// gun empty sound
-			pcm_play(empty_sound, PCM_VOLATILE,6);
+			pcm_play(empty_sound, PCM_SEMI,6);
 			}
 		
 	
@@ -609,6 +616,15 @@ case 9: strcpy(player.a_itemdata->itemtbl[total_items].name,"EVIDENCE");
 case 10: strcpy(player.a_itemdata->itemtbl[total_items].name,"Office Key");
 		strcpy(player.a_itemdata->itemtbl[total_items].description,"Key to unlock Church Office");
 		break;
+		
+case 11: strcpy(player.a_itemdata->itemtbl[total_items].name,"Back Door Key");
+		strcpy(player.a_itemdata->itemtbl[total_items].description,"Key to unlock Antique Shop back door");
+		break;
+
+case 12: strcpy(player.a_itemdata->itemtbl[total_items].name,"Solved Puzzle");
+		strcpy(player.a_itemdata->itemtbl[total_items].description,"Solved Puzzle");
+		player.a_itemdata->itemtbl[total_items].used = true;
+		break;
 
 	
 	
@@ -712,7 +728,7 @@ void save_items(void)
 	
 }
 
-void create_powerup(powerup* new_powerup, Uint8 id, Uint8 type, Sint16 x,Sint16 y, Sint16 z)
+void create_powerup(powerup* new_powerup, Uint16 id, Uint8 type, Sint16 x,Sint16 y, Sint16 z)
 {
 	new_powerup->id = id;
 	new_powerup->type = type;
@@ -735,28 +751,39 @@ void create_powerup(powerup* new_powerup, Uint8 id, Uint8 type, Sint16 x,Sint16 
 	
 }
 
-void create_door(door* new_door, Uint8 id, Uint8 type, Uint16 locked, Sint16 new_x, Sint16 new_y, Sint16 new_z, Sint16 new_ry)
+void create_puzzle(puzzle* new_puzzle, Uint8 id, Uint8 type, Uint16 solved)
 {
-	new_door->id = id;
-	new_door->type = type;
+	new_puzzle->id = id;
+	new_puzzle->type = type;
+	new_puzzle->solved = solved;
+	
+		
+	
+}
+
+void create_door(door* new_door, Uint8 level, Uint8 area, Uint16 key_id, Sint16 new_x, Sint16 new_y, Sint16 new_z, Sint16 new_ry)
+{
+	//change  to level, area, id, new_x, new_y, new_z, new_ry
+	new_door->level = level;
+	new_door->area = area;
 	new_door->new_x = new_x;
 	new_door->new_y = new_y;
 	new_door->new_z = new_z;
 	new_door->new_ry = new_ry;
-	if(locked == 0)
+	if(key_id == 0)
 	{
-	new_door->locked = 0;
+	new_door->key_id = 0;
 	}else
 	{
 	
 	//need to check here if item is in players inventory:
 		
-	if(search_for_item(locked) !=0 && player.a_itemdata->itemtbl[search_for_item(locked)].used)
+	if(search_for_item(key_id) !=0 && player.a_itemdata->itemtbl[search_for_item(key_id)].used)
 	{
-	new_door->locked = 0;
+	new_door->key_id = 0;
 	}else
 	{
-	new_door->locked = locked;
+	new_door->key_id = key_id;
 	}
 	
 	}
@@ -795,9 +822,12 @@ unsigned int puptype =0;
 int pupx =0;
 int pupy =0;
 int pupz =0;
-unsigned int doorid =0;
-unsigned int doorlocked =0;
-unsigned int doortype = 0;
+unsigned int door_level =0;
+unsigned int door_key =0;
+unsigned int door_area = 0;
+unsigned int puzzle_id =0;
+unsigned int puzzle_type =0;
+unsigned int puzzle_solved = 0;
 unsigned int	new_x;
 unsigned int new_y;
 unsigned int new_z;
@@ -932,6 +962,10 @@ nxt +=4;
 			}
         }
 		g_count++;
+		//XL2 wireframe mode
+		//xpdata_[0]->attbl[k].dir &= ~FUNC_Texture;
+		//xpdata_[0]->attbl[k].dir |= FUNC_PolyLine;
+		//xpdata_[0]->attbl[k].dir |= FUNC_Polygon;
       
 	}
 	switch(shading_type)
@@ -1077,11 +1111,11 @@ nxt +=4;
 		for (Uint8 d = 0; d<door_total; d++)
 		{
 				
-		doorid = jo_swap_endian_uint(*((unsigned int *)(stream+nxt)));
+		door_level = jo_swap_endian_uint(*((unsigned int *)(stream+nxt)));
 		nxt+=4;
-		doortype = jo_swap_endian_uint(*((unsigned int *)(stream+nxt)));
+		door_area = jo_swap_endian_uint(*((unsigned int *)(stream+nxt)));
 		nxt+=4;
-		doorlocked = jo_swap_endian_uint(*((unsigned int *)(stream+nxt)));
+		door_key = jo_swap_endian_uint(*((unsigned int *)(stream+nxt)));
 		nxt+=4;
 		new_x = jo_swap_endian_uint(*((unsigned int *)(stream+nxt)));
 		nxt+=4;
@@ -1092,7 +1126,7 @@ nxt +=4;
 		new_ry = jo_swap_endian_uint(*((unsigned int *)(stream+nxt)));
 		nxt+=4;
 		
-		create_door(&doors[d],doorid,doortype,doorlocked,new_x,new_y,new_z,new_ry);
+		create_door(&doors[d],door_level,door_area,door_key,new_x,new_y,new_z,new_ry);
 		
 		}
 	jo_printf(0, line, "door_total:         %d     ", door_total);
@@ -1132,6 +1166,8 @@ line++;
 
 //map plan
 has_map_plan = jo_swap_endian_uint(*((unsigned int *)(stream+nxt)));
+jo_printf(0, line, "has map:             %d     ", has_map_plan);
+line++;
 nxt +=4;
 
 if(has_map_plan)
@@ -1153,6 +1189,31 @@ if(has_map_plan)
 		map_plan.map_max_y = jo_swap_endian_uint(*((unsigned int *)(stream+nxt)));
 		nxt+=4;
 }
+
+//puzzles
+total_puzzles = jo_swap_endian_uint(*((unsigned int *)(stream+nxt)));
+jo_printf(0, line, "puzzles:           %d     ", total_puzzles);
+line++;
+nxt +=4;
+
+if(total_puzzles >0)
+{
+	for (Uint8 puz = 0; puz<total_puzzles; puz++)
+		{
+			
+			puzzle_id = jo_swap_endian_uint(*((unsigned int *)(stream+nxt)));
+			nxt+=4;	
+			puzzle_type = jo_swap_endian_uint(*((unsigned int *)(stream+nxt)));
+			nxt+=4;
+			puzzle_solved = jo_swap_endian_uint(*((unsigned int *)(stream+nxt)));
+			nxt+=4;
+		
+			create_puzzle(&puzzles[puz],puzzle_id,puzzle_type,puzzle_solved);
+		
+		}
+			
+}
+
 
 	
 	jo_free(stream);
@@ -1210,9 +1271,9 @@ unsigned int puptype =0;
 int pupx =0;
 int pupy =0;
 int pupz =0;
-unsigned int doorid =0;
-unsigned int doorlocked =0;
-unsigned int doortype = 0;
+unsigned int door_level =0;
+unsigned int door_key =0;
+unsigned int door_area = 0;
 unsigned int	new_x;
 unsigned int new_y;
 unsigned int new_z;
@@ -1470,9 +1531,9 @@ nxt+=nDigits(door_total);
 nxt+=2;
 		for (Uint8 d = 0; d<door_total; d++)
 		{
-		sscanf(stream+nxt,"%d %d %d %d %d %d %d", &doorid, &doortype, &doorlocked, &new_x, &new_y, &new_z, &new_ry);
-		nxt+= (nDigits(doorid)+nDigits(doortype)+nDigits(doorlocked)+nDigits(new_x)+nDigits(new_y)+nDigits(new_z)+nDigits(new_ry)+8);
-		create_door(&doors[d],doorid,doortype,doorlocked,new_x,new_y,new_z,new_ry);
+		sscanf(stream+nxt,"%d %d %d %d %d %d %d", &door_level, &door_area, &door_key, &new_x, &new_y, &new_z, &new_ry);
+		nxt+= (nDigits(door_level)+nDigits(door_area)+nDigits(door_key)+nDigits(new_x)+nDigits(new_y)+nDigits(new_z)+nDigits(new_ry)+8);
+		create_door(&doors[d],door_level,door_area,door_key,new_x,new_y,new_z,new_ry);
 		
 		}
 	jo_printf(0, line, "door_total:         %d     ", door_total);
@@ -1511,6 +1572,24 @@ void            load_map_plan_tex(char * filename)
 	{
 	jo_set_tga_palette_handling(my_tga_palette_handling2);
 	map_plan_tex = jo_sprite_add_tga("BG", filename, JO_COLOR_Transparent);
+	}
+	
+   
+}
+
+void            load_puzzle_tex(char * filename)
+{
+	//char * filename_bg = strcat(filename,"_BG.TGA");
+	//char * filename_1 = strcat(filename,"_1.TGA");
+	//char * filename_2 = strcat(filename,"_2.TGA");
+	
+	if(total_puzzles > 0)
+	{
+	jo_set_tga_palette_handling(my_tga_palette_handling2);
+	puzzle_bg = jo_sprite_add_tga("BG", "PUZ1_BG.TGA", JO_COLOR_Transparent);
+	
+	puzzle_sprite_1 = jo_sprite_add_tga("BG", "PUZ1_1.TGA", JO_COLOR_Red);
+	puzzle_sprite_2 = jo_sprite_add_tga("BG", "PUZ1_2.TGA", JO_COLOR_Red);
 	}
 	
    
@@ -1555,6 +1634,7 @@ void create_player(void)
 	//set gamepad
 	player.gamepad = 0;
 	add_item(0,0);
+	
 	
 	
 }
@@ -1673,7 +1753,7 @@ void apply_enemy_gravity(enemy * current_enemy)
 
 void				player_jump(void)
 {
-			pcm_play(jump_sound, PCM_VOLATILE, 6);
+			pcm_play(jump_sound, PCM_SEMI, 6);
 			player.speed_y = player.jump_height;
 		
 }
@@ -1681,21 +1761,21 @@ void				player_jump(void)
 void				player_flap(void)
 {
 			player.flapping = true;
-			pcm_play(flap_sound, PCM_VOLATILE, 6);
+			pcm_play(flap_sound, PCM_SEMI, 6);
 			player.speed_y = -6.0f;
 		
 }
 
 void				player_bounce(void)
 {
-			pcm_play(die_sound, PCM_VOLATILE, 6);
+			pcm_play(die_sound, PCM_SEMI, 6);
 			player.speed_y = -8.0f;
 		
 }
 
 void				player_bounceback(void)
 {
-			pcm_play(ouch_sound, PCM_VOLATILE, 6);
+			pcm_play(ouch_sound, PCM_SEMI, 6);
 			player.speed_y = -8.0f;
 		
 }
@@ -2292,10 +2372,10 @@ void enemy_target(void)
 				
 				if(enemies[e].type == 3)
 				{
-				pcm_play(alert2_sound, PCM_VOLATILE, 6);
+				pcm_play(alert2_sound, PCM_SEMI, 6);
 				}else
 				{
-				pcm_play(alert_sound, PCM_VOLATILE, 6);
+				pcm_play(alert_sound, PCM_SEMI, 6);
 				}
 				enemies[e].alert=true;
 				}
@@ -2573,7 +2653,7 @@ void enemy_collision_handling(void)
 			player.blood_size = 1;
 			enemies[e].attack = true;
 			player.health -=10;
-			pcm_play(ouch_sound, PCM_VOLATILE, 6);
+			pcm_play(ouch_sound, PCM_SEMI, 6);
 			enemies[e].nextx = enemies[e].x;
 			enemies[e].nextz = enemies[e].z;
 			enemies[e].can_shoot = false;	
@@ -2754,14 +2834,14 @@ player.nextz = player.z;
 				if (player.action)
 			 {
 				 //find door ID
-				 for (d = 0; d<door_total; d++)
+				 /*for (d = 0; d<door_total; d++)
 				 {
-					 if(doors[d].id == trigger - 10)
+					 if(doors[d].level == trigger - 10)
 						break;
-				 }
+				 }*/
+				 d = trigger - 11;
 				 
-				 
-					if(doors[d].locked == 0)
+					if(doors[d].key_id == 0)
 					{
 						
 					//change colour to green
@@ -2773,14 +2853,16 @@ player.nextz = player.z;
 					player.start_y = doors[d].new_y;
 					player.start_z = doors[d].new_z;
 					player.ry = doors[d].new_ry;
-						if(doors[d].type == 0)
+						if(doors[d].level == game.level)
 						{
-							game.map_section = trigger - 10;
+							game.map_section = doors[d].area;
 							game.game_state = GAMESTATE_LOAD_AREA;
 						}else
 						{
-							game.level = trigger - 10;
-							game.map_section = 1;
+							game.level = doors[d].level;
+							game.map_section = doors[d].area;
+							is_cd_playing = false;
+							//game.game_state = GAMESTATE_TRANSITION_TO_MIRROR;
 							game.game_state = GAMESTATE_LOAD_LEVEL;
 						}
 						
@@ -2790,13 +2872,13 @@ player.nextz = player.z;
 					else
 					{
 						
-						if(search_for_item(doors[d].locked) !=0)
+						if(search_for_item(doors[d].key_id) !=0)
 						{
-						player.a_itemdata->itemtbl[search_for_item(doors[d].locked)].used = true;
-						doors[d].locked = 0;
+						player.a_itemdata->itemtbl[search_for_item(doors[d].key_id)].used = true;
+						doors[d].key_id = 0;
 						game.message_timer = MESSAGE_TIMER;
 						jo_printf(16,20, "Used Key");
-						}else if(doors[d].locked == 99)
+						}else if(doors[d].key_id == 99)
 						{
 						
 						//change colour to red
@@ -2817,6 +2899,12 @@ player.nextz = player.z;
 						jo_printf(16,20, "Locked");	
 							
 						}
+						
+					if(show_debug)
+				{
+				jo_printf(15, 5, "%3d",doors[d].key_id);
+				
+				}
 						
 					}
 			 }
@@ -2845,7 +2933,7 @@ player.nextz = player.z;
 				
 				}*/
 				
-			if(trigger >= 60 && trigger<70 && display_message == 1)
+			if(trigger >= 60 && trigger<80 && display_message == 1)
 			{
 			//investigate message	
 			game.message_timer = MESSAGE_TIMER;
@@ -2853,7 +2941,7 @@ player.nextz = player.z;
 			{
 			case 60: 	jo_printf(16,20, "Investigate");
 						break;
-			case 61:    jo_printf(0,20, "This is the end... for now!");
+			case 61:    jo_printf(0,20, "Enter Mirror");
 						break;
 						
 			case 62:    jo_printf(16,20, "Thanks for playing!");
@@ -2866,6 +2954,31 @@ player.nextz = player.z;
 			}else
 			{
 			tcollide = true;
+			}
+			
+			if(trigger >= 80 && trigger<90)
+			{
+			//puzzle
+			if(search_for_item(puzzles[0].id) ==0)
+				{
+					game.message_timer = MESSAGE_TIMER;
+					switch(trigger)
+					{
+					case 81: 	//clock puzzle
+								jo_printf(16,20, "Investigate");
+								if (player.action)
+								{
+								jo_clear_screen();
+								game.game_state = GAMESTATE_PUZZLE;
+												
+								}
+								break;
+					
+						
+					}
+			
+				}
+			
 			}
 			
 			}else
@@ -3114,7 +3227,7 @@ player.nextz = player.z;
 			highlight_item = powerups[p].id;
 			if (player.action)
 			{
-			pcm_play(pup_sound, PCM_VOLATILE, 6);
+			pcm_play(pup_sound, PCM_SEMI, 6);
 			powerups[p].used = true;
 			add_item(powerups[p].id,powerups[p].type);
 			item_num = search_for_item(powerups[p].id);
@@ -3224,9 +3337,9 @@ slCurWindow(winFar);
 		
 			switch(player.current_weapon->type)
 			{
-			case 0: pcm_play(pistol_sound, PCM_VOLATILE, 6);
+			case 0: pcm_play(pistol_sound, PCM_SEMI, 6);
 					break;
-			case 1: pcm_play(shotgun_sound, PCM_VOLATILE, 6);
+			case 1: pcm_play(shotgun_sound, PCM_SEMI, 6);
 					break;
 			
 				
@@ -3350,12 +3463,12 @@ anim_loop = 1;
 if(player.anim_frame == 1)
 			{
 			pcm_cease(ladder_sound);
-			pcm_play(ladder_sound, PCM_VOLATILE, 6);
+			pcm_play(ladder_sound, PCM_SEMI, 6);
 			}
 	if(player.anim_frame == 12)
 			{
 			pcm_cease(ladder_sound);
-			pcm_play(ladder_sound, PCM_VOLATILE, 6);
+			pcm_play(ladder_sound, PCM_SEMI, 6);
 			}
 	
 }else if(player.speed_y != 0)
@@ -3387,13 +3500,13 @@ anim_loop = 1;
 			{
 			//foot on floor - make walking sound
 			//pcm_cease(step_sound);
-			pcm_play(step_sound, PCM_VOLATILE, 6);
+			pcm_play(step_sound, PCM_SEMI, 6);
 			
 			}
 	if(player.anim_frame == 12)
 			{
 			//pcm_cease(step_sound);
-			pcm_play(step_sound, PCM_VOLATILE, 6);
+			pcm_play(step_sound, PCM_SEMI, 6);
 			}
 
 }else
@@ -3572,7 +3685,7 @@ switch(current_enemy->type)
 				if(current_enemy->rarm_rz == 44 )
 				{
 				//flap - make flapping sound
-				pcm_play(flap_sound, PCM_VOLATILE, 6);
+				pcm_play(flap_sound, PCM_SEMI, 6);
 				
 				}/*else
 				{
@@ -3609,7 +3722,7 @@ switch(current_enemy->type)
 				if(current_enemy->rarm_rz == 44 )
 				{
 				//flap - make flapping sound
-				pcm_play(flap_sound, PCM_VOLATILE, 6);			
+				pcm_play(flap_sound, PCM_SEMI, 6);			
 				
 				}/*else
 				{
@@ -3655,7 +3768,7 @@ switch(current_enemy->type)
 			if(current_enemy->health <= 0)
 			{
 			current_enemy->alive = false;
-			pcm_play(die_sound, PCM_VOLATILE, 6);
+			pcm_play(die_sound, PCM_SEMI, 6);
 			add_item(current_enemy->id,8);
 			}
 			
@@ -4161,7 +4274,7 @@ void				draw_player(void)
 				
 				///reflection
 
-			if((game.level == 1 && game.map_section == 2)|| (game.level == 2 && game.map_section == 6)|| (game.level == 3 && game.map_section == 1)|| (game.level == 4 && game.map_section == 1))
+			if((game.level == 1 && game.map_section == 2)|| (game.level == 2 && game.map_section == 6)|| (game.level == 3 && game.map_section == 1)|| (game.level == 4 && game.map_section == 1)|| (game.level == 6 && game.map_section == 3))
 			{
 				slPushMatrix();
 				{
@@ -4597,6 +4710,7 @@ void			    my_draw(void)
 		jo_printf(0, 23,  "SPRITE MEMORY USAGE: %d%%  ", jo_sprite_usage_percent());
 		jo_printf(0, 24, "polygon count %4d" , jo_3d_get_polygon_count());
 		jo_printf(0, 25, "polygons displayed %4d" , jo_3d_get_displayed_polygon_count());
+		jo_printf(20, 25, "framerate %ld" , framerate);
 		
 		//jo_printf(20, 3, "NPOS:\t%3d\t%3d\t%3d ",(int) doors[1].new_x, (int) doors[1].new_y, (int) doors[1].new_z);
 		//jo_printf(0, 0, "EPOS: :\t%3d\t%3d\t%3d ",(int) enemies[0].x, (int) enemies[0].y, (int) enemies[0].z);
@@ -4691,7 +4805,7 @@ void				transition_to_title_screen(void)
 	is_cd_playing = false;
 	jo_sprite_free_from(map_sprite_id);
 	game.level=1;
-	load_map_textures("STREET.TGA",64);
+	load_map_textures("STRT.TGA",64);
 	load_binary((char*)"TITLE.BIN", (void*)WORK_RAM_LOW);
 	jo_clear_screen();
 	game.start_timer = false;
@@ -4746,6 +4860,24 @@ void				load_level(void)
 			slSetDepthLimit(0,10,5);
 			break;
 			
+	case 6: load_map_textures(level6[0],64);
+			load_binary((char*)level6[game.map_section], (void*)WORK_RAM_LOW);
+			load_puzzle_tex((char*)"PUZ1");
+			slSetDepthLimit(0,9,5);
+			break;
+			
+	case 7: load_map_textures(level7[0],64);
+			load_binary((char*)level7[game.map_section], (void*)WORK_RAM_LOW);
+			load_map_plan_tex(level7[0]);
+			slSetDepthLimit(0,9,5);
+			break;
+			
+	case 8: load_map_textures(level8[0],64);
+			load_binary((char*)level8[game.map_section], (void*)WORK_RAM_LOW);
+			load_map_plan_tex(level8[0]);
+			slSetDepthLimit(0,9,5);
+			break;
+			
 	
 	}
 	
@@ -4772,8 +4904,10 @@ void				load_area(void)
 	if (game.game_state != GAMESTATE_LOAD_AREA)
        return; 
 	stop_sounds();
-	pcm_play(door_sound, PCM_VOLATILE, 6);
+	pcm_play(door_sound, PCM_SEMI, 6);
 	is_cd_playing = false;
+	
+	//load_binary((char*)levels[game.level][game.map_section], (void*)WORK_RAM_LOW);
 	
 	switch(game.level)
 	{
@@ -4787,6 +4921,17 @@ void				load_area(void)
 			break;
 			
 	case 4: load_binary((char*)level4[game.map_section], (void*)WORK_RAM_LOW);
+			break;
+			
+	case 5: load_binary((char*)level5[game.map_section], (void*)WORK_RAM_LOW);
+			break;
+			
+	case 6: load_binary((char*)level6[game.map_section], (void*)WORK_RAM_LOW);
+			load_puzzle_tex((char*)"PUZ1");
+			break;
+	case 7: load_binary((char*)level7[game.map_section], (void*)WORK_RAM_LOW);
+			break;
+	case 8: load_binary((char*)level8[game.map_section], (void*)WORK_RAM_LOW);
 			break;
 			
 	
@@ -4816,7 +4961,7 @@ item_type = player.a_itemdata->itemtbl[current_item].type;
 switch(item_type)
 {
 case 0:	
-	pcm_play(reload_sound, PCM_VOLATILE, 6);
+	pcm_play(reload_sound, PCM_SEMI, 6);
 	player.current_weapon = &pistol;
 	
 	break;
@@ -4824,7 +4969,7 @@ case 0:
 case 1:	
 	if(player.health < 100)
 	{
-	pcm_play(pup_sound, PCM_VOLATILE, 6);
+	pcm_play(pup_sound, PCM_SEMI, 6);
 	player.a_itemdata->itemtbl[current_item].used = true;
 	player.health = 100;
 	}
@@ -4839,7 +4984,7 @@ case 2:
 	break;
 	
 case 3:	
-	pcm_play(reload_sound, PCM_VOLATILE, 6);
+	pcm_play(reload_sound, PCM_SEMI, 6);
 	player.current_weapon = &shotgun;
 	
 	break;
@@ -4854,7 +4999,7 @@ case 4:
 case 6:	
 	if(player.health < 100)
 	{
-	pcm_play(pup_sound, PCM_VOLATILE, 6);
+	pcm_play(pup_sound, PCM_SEMI, 6);
 	player.a_itemdata->itemtbl[current_item].used = true;
 	player.health += 10;
 	}
@@ -4882,6 +5027,112 @@ case 9:
 	
 }
 	
+}
+
+
+void			    show_puzzle(void)
+{
+	if (game.game_state != GAMESTATE_PUZZLE)
+       return;
+	
+	bool solved = 0;
+	
+	jo_printf(0, 1, "            *PUZZLE*");
+	jo_printf(0, 2, "HOUR: %3d", puz_rot1);
+	jo_printf(0, 3, "MINS: %3d", puz_rot2);
+	
+	jo_printf(8, 25, "PRESS B TO RETURN TO GAME");
+	
+	jo_sprite_set_palette(map_plan_pal.id);
+	jo_sprite_draw3D(puzzle_bg,0, 0, 300);
+	jo_sprite_draw3D_and_rotate(puzzle_sprite_1,4, 16, 200,puz_rot1);
+	jo_sprite_draw3D_and_rotate(puzzle_sprite_2,4, 16, 200,puz_rot2);	
+	
+	jo_3d_camera_look_at(&cam);
+	jo_3d_camera_set_viewpoint(&cam,0,0,0);
+	jo_3d_camera_set_target(&cam,0,0,100);
+	
+	if((puz_rot1 > 30 && puz_rot1 < 40) && (puz_rot2 > 77 && puz_rot1 < 87))
+	{
+	solved = true;	
+	}else
+	{
+	solved = false;	
+	}
+	
+	
+	if (KEY_DOWN(0,PER_DGT_ST))
+		{
+			
+			if(solved)
+			{
+			pcm_play(pup_sound, PCM_SEMI, 6);
+			add_item(631,11);
+			add_item(puzzles[0].id,12);
+			jo_clear_screen();
+			jo_sprite_set_palette(image_pal.id);
+			game.game_state = GAMESTATE_GAMEPLAY;
+			
+			}else
+			{
+			pcm_play(ouch_sound, PCM_SEMI, 6);
+			jo_clear_screen();
+			jo_sprite_set_palette(image_pal.id);
+			game.game_state = GAMESTATE_GAMEPLAY;	
+			}
+			
+			
+			
+		}
+	
+	if (KEY_DOWN(0,PER_DGT_TB))
+		{
+			
+			jo_clear_screen();
+			jo_sprite_set_palette(image_pal.id);
+			game.game_state = GAMESTATE_GAMEPLAY;
+			
+		}
+		
+	if (KEY_PRESS(0,PER_DGT_KU))
+		{
+			
+		puz_rot1 ++;
+			
+		}
+		
+	if (KEY_PRESS(0,PER_DGT_KD))
+		{
+			
+		puz_rot1 --;
+			
+		}
+		
+	if (KEY_PRESS(0,PER_DGT_KR))
+		{
+			
+		puz_rot2 ++;
+			
+		}
+		
+	if (KEY_PRESS(0,PER_DGT_KL))
+		{
+			
+		puz_rot2 --;
+			
+		}
+		
+	if (puz_rot1 > 180)
+		puz_rot1 -=360;
+	else if (puz_rot1 <= -180)
+		puz_rot1 +=360;
+	
+	if (puz_rot2 > 180)
+		puz_rot2 -=360;
+	else if (puz_rot2 <= -180)
+		puz_rot2 +=360;
+		
+		
 }
 
 void			    show_map_plan(void)
@@ -4981,6 +5232,7 @@ void			    inventory(void)
 	draw_hud();
 	
 	jo_printf(20, line, "%s", player.a_itemdata->itemtbl[inventory_item_number].name);line++; 
+	jo_printf(20, line, "%3d", player.a_itemdata->itemtbl[inventory_item_number].id);line++; 
 	
 	jo_printf(20, line, "%s", player.a_itemdata->itemtbl[inventory_item_number].description);line++;
 	if(player.a_itemdata->itemtbl[inventory_item_number].type == 0)
@@ -5130,7 +5382,7 @@ void				map_builder_animate_enemy(void)
 											if(player.rarm_rz == 44 )
 											{
 											//flap - make flapping sound
-											pcm_play(flap_sound, PCM_VOLATILE, 6);
+											pcm_play(flap_sound, PCM_SEMI, 6);
 											
 											
 											}
@@ -5153,7 +5405,7 @@ void				map_builder_animate_enemy(void)
 											if(player.rarm_rz == 44 )
 											{
 											//flap - make flapping sound
-											pcm_play(flap_sound, PCM_VOLATILE, 6);
+											pcm_play(flap_sound, PCM_SEMI, 6);
 											
 											}
 											
@@ -6212,7 +6464,7 @@ void				move_camera(void)
 
 {
 	
-	if(game.game_state != GAMESTATE_GAMEPLAY && game.game_state != GAMESTATE_DEAD)
+	if(game.game_state != GAMESTATE_GAMEPLAY && game.game_state != GAMESTATE_DEAD && game.game_state !=GAMESTATE_TRANSITION_TO_MIRROR)
 	return;
 	
 	int collide;
@@ -6464,6 +6716,66 @@ void				move_camera(void)
 	
 }
 
+void transition_to_mirror_world(void)
+{
+	
+	if (game.game_state != GAMESTATE_TRANSITION_TO_MIRROR)
+    return;
+	player.can_be_hurt = false;
+	jo_3d_camera_look_at(&cam);
+	
+	slSetGouraudColor(CD_Red);
+	
+	slPushMatrix();
+    {
+        if(use_light) computeLight();
+		
+    }
+	slPopMatrix();
+	
+	
+	
+	
+	slPushMatrix();
+		{
+		//jo_3d_set_scalef(game.title_size,game.title_size,game.title_size);
+		slRotZ(DEGtoANG(map_section[0].rz));
+					
+		slPutPolygonX(map_section[0].map_model, light);
+	
+		}
+	slPopMatrix();
+	
+	draw_player();
+	
+	
+	if (!is_cd_playing)
+    {
+		CDDAPlaySingle(3, false);
+		is_cd_playing = true;
+	}
+		
+	//map_section[0].rz ++;
+		
+		
+	game.title_screen_timer ++;
+	
+	
+	if(game.title_screen_timer >= TITLE_SCREEN_TIMER)
+	{
+		
+		map_section[0].rz = 0;
+		is_cd_playing = false;
+		slSetGouraudColor(CD_White);
+		game.game_state = GAMESTATE_LOAD_LEVEL;
+		
+		
+		
+	}
+	
+	
+	
+}
 
 
 void            title_screen(void)
@@ -6625,7 +6937,7 @@ slCurWindow(winNear);
 	
 	if(game.title_screen_timer >= TITLE_SCREEN_TIMER)
 	{
- 	
+ 	game.title_screen_timer = 0;
 		is_cd_playing = false;
 		init_level();
 		reset_demo();
@@ -6839,7 +7151,7 @@ void			my_gamepad(void)
 		
 		 if (KEY_DOWN(0,PER_DGT_TX))
 		 {
-			  pcm_play(map_sound, PCM_VOLATILE, 6);
+			  pcm_play(map_sound, PCM_SEMI, 6);
 			 jo_clear_screen();
 			 game.game_state = GAMESTATE_MAP;
 		 }
@@ -7069,6 +7381,7 @@ void gameLoop(void)
 {
    	while (1)
     {
+				
 		sdrv_vblank_rq();
         slUnitMatrix(0);
 		draw_3d_planes();
@@ -7081,6 +7394,8 @@ void gameLoop(void)
 		player_dead();
 		inventory();
 		show_map_plan();
+		show_puzzle();
+		transition_to_mirror_world();
 		load_level();
 		load_area();
         slSynch();
@@ -7121,7 +7436,7 @@ void			jo_main(void)
 	jo_printf(0, 2, "Loading sound........[X]");
 	
 	jo_printf(0, 3, "Loading map tex......[ ]");
-	load_map_textures("STREET.TGA",64);
+	load_map_textures("STRT.TGA",64);
 	jo_printf(0, 3, "Loading map tex......[X]");
 	jo_printf(0, 4, "Loading map..........[ ]");
 	load_binary((char*)"TITLE.BIN", (void*)WORK_RAM_LOW);
