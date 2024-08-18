@@ -4705,6 +4705,8 @@ XPDATA *pup_data[]={
 &xpdata_spider_head,
 &xpdata_photo_shop,
 &xpdata_pup_key,
+&xpdata_pup_key,
+&xpdata_spider_head,
 
 };
 
